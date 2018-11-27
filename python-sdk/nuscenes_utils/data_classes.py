@@ -2,7 +2,7 @@
 # Code written by Oscar Beijbom, 2018.
 # Licensed under the Creative Commons [see licence.txt]
 
-from __future__ import annotations
+# from __future__ import annotations
 import struct
 from typing import Tuple, List
 
@@ -25,7 +25,7 @@ class PointCloud:
         self.points = points
 
     @staticmethod
-    def load_numpy_bin(file_name: str) -> np.ndarray:
+    def load_numpy_bin(file_name: str):
         """
         Loads LIDAR data from binary numpy format. Data is stored as (x, y, z, intensity, ring index).
         :param file_name: The path of the pointcloud file.
@@ -36,7 +36,7 @@ class PointCloud:
         return points.T
 
     @staticmethod
-    def load_pcd_bin(file_name: str) -> np.ndarray:
+    def load_pcd_bin(file_name: str):
         """
         Loads RADAR data from a Point Cloud Data file to a list of lists (=points) and meta data.
 
@@ -114,7 +114,7 @@ class PointCloud:
         return points
 
     @classmethod
-    def from_file(cls, file_name: str) -> PointCloud:
+    def from_file(cls, file_name: str):
         """
         Instantiate from a .pcl, .pdc, .npy, or .bin file.
         :param file_name: Path of the pointcloud file on disk.
@@ -129,14 +129,14 @@ class PointCloud:
 
         return cls(points)
 
-    def nbr_points(self) -> int:
+    def nbr_points(self):
         """
         Returns the number of points.
         :return: Number of points.
         """
         return self.points.shape[1]
 
-    def subsample(self, ratio: float) -> None:
+    def subsample(self, ratio: float):
         """
         Sub-samples the pointcloud.
         :param ratio: Fraction to keep.
@@ -144,7 +144,7 @@ class PointCloud:
         selected_ind = np.random.choice(np.arange(0, self.nbr_points()), size=int(self.nbr_points() * ratio))
         self.points = self.points[:, selected_ind]
 
-    def remove_close(self, radius: float) -> None:
+    def remove_close(self, radius: float):
         """
         Removes point too close within a certain radius from origin.
         :param radius: Radius below which points are removed.
@@ -155,7 +155,7 @@ class PointCloud:
         not_close = np.logical_not(np.logical_and(x_filt, y_filt))
         self.points = self.points[:, not_close]
 
-    def translate(self, x: np.ndarray) -> None:
+    def translate(self, x: np.ndarray):
         """
         Applies a translation to the point cloud.
         :param x: <np.float: 3, 1>. Translation in x, y, z.
@@ -163,14 +163,14 @@ class PointCloud:
         for i in range(3):
             self.points[i, :] = self.points[i, :] + x[i]
 
-    def rotate(self, rot_matrix: np.ndarray) -> None:
+    def rotate(self, rot_matrix: np.ndarray):
         """
         Applies a rotation.
         :param rot_matrix: <np.float: 3, 3>. Rotation matrix.
         """
         self.points[:3, :] = np.dot(rot_matrix, self.points[:3, :])
 
-    def transform(self, transf_matrix: np.ndarray) -> None:
+    def transform(self, transf_matrix: np.ndarray):
         """
         Applies a homogeneous transform.
         :param transf_matrix: <np.float: 4, 4>. Homogenous transformation matrix.
@@ -178,7 +178,7 @@ class PointCloud:
         self.points[:3, :] = transf_matrix.dot(np.vstack((self.points[:3, :], np.ones(self.nbr_points()))))[:3, :]
 
     def render_height(self, ax: Axes, view: np.ndarray=np.eye(4), x_lim: Tuple=(-20, 20), y_lim: Tuple=(-20, 20),
-                      marker_size: float=1) -> None:
+                      marker_size: float=1):
         """
         Very simple method that applies a transformation and then scatter plots the points colored by height (z-value).
         :param ax: Axes on which to render the points.
@@ -190,7 +190,7 @@ class PointCloud:
         self._render_helper(2, ax, view, x_lim, y_lim, marker_size)
 
     def render_intensity(self, ax: Axes, view: np.ndarray=np.eye(4), x_lim: Tuple=(-20, 20), y_lim: Tuple=(-20, 20),
-                         marker_size: float=1) -> None:
+                         marker_size: float=1):
         """
         Very simple method that applies a transformation and then scatter plots the points colored by intensity.
         :param ax: Axes on which to render the points.
@@ -202,7 +202,7 @@ class PointCloud:
         self._render_helper(3, ax, view, x_lim, y_lim, marker_size)
 
     def _render_helper(self, color_channel: int, ax: Axes, view: np.ndarray, x_lim: Tuple, y_lim: Tuple,
-                       marker_size: float) -> None:
+                       marker_size: float):
         """
         Helper function for rendering.
         :param color_channel: Point channel to use as color.
@@ -268,21 +268,21 @@ class Box:
                                self.velocity[0], self.velocity[1], self.velocity[2], self.name)
     
     @property
-    def rotation_matrix(self) -> np.ndarray:
+    def rotation_matrix(self):
         """
         Return a rotation matrix.
         :return: <np.float: 3, 3>. The box's rotation matrix.
         """
         return self.orientation.rotation_matrix
 
-    def translate(self, x: np.ndarray) -> None:
+    def translate(self, x: np.ndarray):
         """
         Applies a translation.
         :param x: <np.float: 3, 1>. Translation in x, y, z direction.
         """
         self.center += x
 
-    def rotate(self, quaternion: Quaternion) -> None:
+    def rotate(self, quaternion: Quaternion):
         """
         Rotates box.
         :param quaternion: Rotation to apply.
@@ -291,7 +291,7 @@ class Box:
         self.orientation = quaternion * self.orientation
         self.velocity = np.dot(quaternion.rotation_matrix, self.velocity)
 
-    def corners(self, wlh_factor: float=1.0) -> np.ndarray:
+    def corners(self, wlh_factor: float=1.0):
         """
         Returns the bounding box corners.
         :param wlh_factor: Multiply w, l, h by a factor to scale the box.
@@ -317,7 +317,7 @@ class Box:
 
         return corners
 
-    def bottom_corners(self) -> np.ndarray:
+    def bottom_corners(self):
         """
         Returns the four bottom corners.
         :return: <np.float: 3, 4>. Bottom corners. First two face forward, last two face backwards.
@@ -360,7 +360,7 @@ class Box:
                   color=colors[0], linewidth=linewidth)
 
     def render_cv2(self, im: np.ndarray, view: np.ndarray=np.eye(3), normalize: bool=False,
-                   colors: Tuple=((0, 0, 255), (255, 0, 0), (155, 155, 155)), linewidth: float=2.0) -> None:
+                   colors: Tuple=((0, 0, 255), (255, 0, 0), (155, 155, 155)), linewidth: float=2.0):
         """
         Renders box using opencv2.
         :param im: <np.array: width, height, 3>. Image array. Channels are in BGR order.

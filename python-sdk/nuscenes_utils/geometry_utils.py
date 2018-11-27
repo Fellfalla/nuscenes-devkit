@@ -2,7 +2,7 @@
 # Code written by Oscar Beijbom, 2018.
 # Licensed under the Creative Commons [see licence.txt]
 
-from __future__ import annotations
+# from __future__ import annotations
 from typing import Tuple
 import math
 from enum import IntEnum
@@ -17,7 +17,7 @@ class BoxVisibility(IntEnum):
     NONE = 2  # Requires no corners to be inside, i.e. box can be fully outside the image.
 
 
-def quaternion_slerp(q0: np.ndarray, q1: np.ndarray, fraction: float) -> np.ndarray:
+def quaternion_slerp(q0: np.ndarray, q1: np.ndarray, fraction: float):
     """
     Does interpolation between two quaternions. This code is modified from
     https://www.lfd.uci.edu/~gohlke/code/transformations.py.html
@@ -49,7 +49,7 @@ def quaternion_slerp(q0: np.ndarray, q1: np.ndarray, fraction: float) -> np.ndar
     return q0
 
 
-def view_points(points: np.ndarray, view: np.ndarray, normalize: bool) -> np.ndarray:
+def view_points(points: np.ndarray, view: np.ndarray, normalize: bool):
     """
     This is a helper class that maps 3d points to a 2d plane. It can be used to implement both perspective and
     orthographic projections. It first applies the dot product between the points and the view. By convention,
@@ -88,7 +88,7 @@ def view_points(points: np.ndarray, view: np.ndarray, normalize: bool) -> np.nda
     return points
 
 
-def box_in_image(box, intrinsic: np.ndarray, imsize: Tuple[int], vis_level: int=BoxVisibility.ANY) -> bool:
+def box_in_image(box, intrinsic: np.ndarray, imsize: Tuple[int], vis_level: int=BoxVisibility.ANY):
     """
     Check if a box is visible inside an image without accounting for occlusions.
     :param box: The box to be checked.

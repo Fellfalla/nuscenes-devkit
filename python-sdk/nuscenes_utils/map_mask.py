@@ -28,7 +28,7 @@ class MapMask:
         self._transf_matrix = None  # Transformation matrix from global coords to map coords. (lazy load).
 
     @property
-    def mask(self) -> np.ndarray:
+    def mask(self):
         """
         Create binary mask from the png file.
         :return: <np.int8: image.height, image.width>. The binary mask.
@@ -42,7 +42,7 @@ class MapMask:
         return self._mask
 
     @property
-    def transform_matrix(self) -> np.ndarray:
+    def transform_matrix(self):
         """
         Generate transform matrix for this map mask.
         :return: <np.array: 4, 4>. The transformation matrix.
@@ -55,7 +55,7 @@ class MapMask:
         return self._transf_matrix
 
     @property
-    def distance_mask(self) -> np.ndarray:
+    def distance_mask(self):
         """
         Generate distance mask from self.mask which is the original mask from the png file.
         :return: <np.float32: image.height, image.width>. The distance mask.
@@ -67,14 +67,14 @@ class MapMask:
 
         return self._distance_mask
 
-    def export_to_png(self, filename: str='mask.png') -> None:
+    def export_to_png(self, filename: str='mask.png'):
         """
         Export mask to png file.
         :param filename: Path to the png file.
         """
         cv2.imwrite(filename=filename, img=self.mask)
 
-    def is_on_mask(self, x: float, y: float) -> bool:
+    def is_on_mask(self, x: float, y: float):
         """
         Determine whether a point is on the semantic_prior mask.
         :param x: Global x.
@@ -89,7 +89,7 @@ class MapMask:
 
         return self.mask[py, px] == self.foreground
 
-    def dist_to_mask(self, x: float, y:float) -> float:
+    def dist_to_mask(self, x: float, y:float):
         """
         Get the distance of a point to the nearest foreground in perception GT semantic prior mask (dilated).
         :param x: Global x.
@@ -103,7 +103,7 @@ class MapMask:
 
         return self.distance_mask[py, px]
 
-    def get_pixel(self, x: float, y: float) -> Tuple[int]:
+    def get_pixel(self, x: float, y: float):
         """
         Get the image coordinates given a x-y point.
         :param x: Global x.

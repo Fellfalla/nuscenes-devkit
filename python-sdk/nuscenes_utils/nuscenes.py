@@ -2,7 +2,7 @@
 # Code written by Oscar Beijbom, 2018.
 # Licensed under the Creative Commons [see licence.txt]
 
-from __future__ import annotations
+# from __future__ import annotations
 
 import json
 import time
@@ -88,17 +88,17 @@ class NuScenes:
         self.explorer = NuScenesExplorer(self)
 
     @property
-    def table_root(self) -> str:
+    def table_root(self):
         """ Returns the folder where the tables are stored for the relevant version. """
         return osp.join(self.dataroot, self.version)
 
-    def __load_table__(self, table_name) -> dict:
+    def __load_table__(self, table_name):
         """ Loads a table. """
         with open(osp.join(self.table_root, '{}.json'.format(table_name))) as f:
             table = json.load(f)
         return table
 
-    def __make_reverse_index__(self, verbose: bool) -> None:
+    def __make_reverse_index__(self, verbose: bool):
         """
         De-normalizes database to create reverse indices for common cases.
         :param verbose: Whether to print outputs.
@@ -150,7 +150,7 @@ class NuScenes:
         if verbose:
             print("Done reverse indexing in {:.1f} seconds.\n======".format(time.time() - start_time))
 
-    def get(self, table_name: str, token: str) -> dict:
+    def get(self, table_name: str, token: str):
         """
         Returns a record from table in constant runtime.
         :param table_name: Table name.
@@ -161,7 +161,7 @@ class NuScenes:
 
         return getattr(self, table_name)[self.getind(table_name, token)]
 
-    def getind(self, table_name: str, token: str) -> int:
+    def getind(self, table_name: str, token: str):
         """
         This returns the index of the record in a table in constant runtime.
         :param table_name: Table name.
@@ -170,7 +170,7 @@ class NuScenes:
         """
         return self._token2ind[table_name][token]
 
-    def field2token(self, table_name: str, field: str, query) -> List[str]:
+    def field2token(self, table_name: str, field: str, query):
         """
         This function queries all record for a certain field value, and returns the tokens for the matching records.
         Warning: this runs in linear time.
@@ -185,7 +185,7 @@ class NuScenes:
                 matches.append(member['token'])
         return matches
 
-    def get_sample_data_path(self, sample_data_token: str) -> str:
+    def get_sample_data_path(self, sample_data_token: str):
         """ Returns the path to a sample_data """
 
         sd_record = self.get('sample_data', sample_data_token)
@@ -242,7 +242,7 @@ class NuScenes:
 
         return data_path, box_list, cam_intrinsic
 
-    def get_box(self, sample_annotation_token: str) -> Box:
+    def get_box(self, sample_annotation_token: str):
         """
         Instantiates a Box class from a sample annotation record.
         :param sample_annotation_token: Unique sample_annotation identifier.
@@ -250,7 +250,7 @@ class NuScenes:
         record = self.get('sample_annotation', sample_annotation_token)
         return Box(record['translation'], record['size'], Quaternion(record['rotation']), name=record['category_name'])
 
-    def get_boxes(self, sample_data_token: str) -> List[Box]:
+    def get_boxes(self, sample_data_token: str):
         """
         Instantiates Boxes for all annotation for a particular sample_data record. If the sample_data is a
         keyframe, this returns the annotations for that sample. But if the sample_data is an intermediate
@@ -307,45 +307,45 @@ class NuScenes:
                 boxes.append(box)
         return boxes
 
-    def list_categories(self) -> None:
+    def list_categories(self):
         self.explorer.list_categories()
 
-    def list_attributes(self) -> None:
+    def list_attributes(self):
         self.explorer.list_attributes()
 
-    def list_scenes(self) -> None:
+    def list_scenes(self):
         self.explorer.list_scenes()
 
-    def list_sample(self, sample_token: str) -> None:
+    def list_sample(self, sample_token: str):
         self.explorer.list_sample(sample_token)
 
     def render_pointcloud_in_image(self, sample_token: str, dot_size: int=5,  pointsensor_channel: str='LIDAR_TOP',
-                                   camera_channel: str='CAM_FRONT') -> None:
+                                   camera_channel: str='CAM_FRONT'):
         self.explorer.render_pointcloud_in_image(sample_token, dot_size, pointsensor_channel=pointsensor_channel,
                                                  camera_channel=camera_channel)
 
-    def render_sample(self, sample_token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY) -> None:
+    def render_sample(self, sample_token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY):
         self.explorer.render_sample(sample_token, box_vis_level)
 
     def render_sample_data(self, sample_data_token: str, with_anns: bool=True,
-                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None) -> None:
+                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None):
         self.explorer.render_sample_data(sample_data_token, with_anns, box_vis_level, axes_limit, ax)
 
     def render_annotation(self, sample_annotation_token: str, margin: float=10, view: np.ndarray=np.eye(4),
-                          box_vis_level: BoxVisibility=BoxVisibility.ANY) -> None:
+                          box_vis_level: BoxVisibility=BoxVisibility.ANY):
         self.explorer.render_annotation(sample_annotation_token, margin, view, box_vis_level)
 
-    def render_instance(self, instance_token: str) -> None:
+    def render_instance(self, instance_token: str):
         self.explorer.render_instance(instance_token)
 
     def render_scene(self, scene_token: str, freq: float=10, imsize: Tuple[float, float]=(640, 360),
-                     out_path : str=None) -> None:
+                     out_path : str=None):
         self.explorer.render_scene(scene_token, freq, imsize, out_path)
 
     def render_scene_channel(self, scene_token: str, channel: str='CAM_FRONT', imsize: Tuple[float, float]=(640, 360)):
         self.explorer.render_scene_channel(scene_token, channel=channel, imsize=imsize)
 
-    def render_egoposes_on_map(self, log_location: str, scene_tokens: List=None, demo_ss_factor: float=2.0) -> None:
+    def render_egoposes_on_map(self, log_location: str, scene_tokens: List=None, demo_ss_factor: float=2.0):
         self.explorer.render_egoposes_on_map(log_location, scene_tokens, demo_ss_factor)
 
 
@@ -357,7 +357,7 @@ class NuScenesExplorer:
         self.nusc = nusc
 
     @staticmethod
-    def get_color(category_name: str) -> Tuple[int, int, int]:
+    def get_color(category_name: str):
         """ Provides the default colors based on the category names. """
         if category_name in ['vehicle.bicycle', 'vehicle.motorcycle']:
             return 255, 61, 99  # Red
@@ -370,7 +370,7 @@ class NuScenesExplorer:
         else:
             return 255, 0, 255  # Magenta
 
-    def list_categories(self) -> None:
+    def list_categories(self):
         """ Print categories, counts and stats. """
         categories = dict()
         for record in self.nusc.sample_annotation:
@@ -387,7 +387,7 @@ class NuScenesExplorer:
                                                          np.mean(stats[:, 2]), np.std(stats[:, 2]),
                                                          np.mean(stats[:, 3]), np.std(stats[:, 3])))
 
-    def list_attributes(self) -> None:
+    def list_attributes(self):
         """ Prints attributes and counts. """
         attribute_counts = dict()
         for record in self.nusc.sample_annotation:
@@ -400,7 +400,7 @@ class NuScenesExplorer:
         for name, count in sorted(attribute_counts.items()):
             print('{}: {}'.format(name, count))
 
-    def list_scenes(self) -> None:
+    def list_scenes(self):
         """ Lists all scenes with some meta data. """
 
         def ann_count(record):
@@ -426,7 +426,7 @@ class NuScenesExplorer:
                 desc, datetime.utcfromtimestamp(start_time).strftime('%y-%m-%d %H:%M:%S'),
                 length_time, location, ann_count(record)))
 
-    def list_sample(self, sample_token: str) -> None:
+    def list_sample(self, sample_token: str):
         """ Prints sample_data tokens and sample_annotation tokens related to the sample_token. """
 
         sample_record = self.nusc.get('sample', sample_token)
@@ -440,7 +440,7 @@ class NuScenesExplorer:
             ann_record = self.nusc.get('sample_annotation', ann_token)
             print('sample_annotation_token: {}, category: {}'.format(ann_record['token'], ann_record['category_name']))
 
-    def map_pointcloud_to_image(self, pointsensor_token: str, camera_token: str) -> Tuple:
+    def map_pointcloud_to_image(self, pointsensor_token: str, camera_token: str):
         """
         Given a point sensor (lidar/radar) token and camera sample_data token, load point-cloud and map it to the image
         plane.
@@ -499,7 +499,7 @@ class NuScenesExplorer:
         return points, coloring, im
 
     def render_pointcloud_in_image(self, sample_token: str, dot_size: int=5, pointsensor_channel: str='LIDAR_TOP',
-                                   camera_channel: str='CAM_FRONT') -> None:
+                                   camera_channel: str='CAM_FRONT'):
         """
         Scatter-plots a point-cloud on top of image.
         :param sample_token: Sample token.
@@ -519,7 +519,7 @@ class NuScenesExplorer:
         plt.scatter(points[0, :], points[1, :], c=coloring, s=dot_size)
         plt.axis('off')
 
-    def render_sample(self, token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY) -> None:
+    def render_sample(self, token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY):
         """
         Render all LIDAR and camera sample_data in sample along with annotations.
         :param token: Sample token.
@@ -544,7 +544,7 @@ class NuScenesExplorer:
         plt.tight_layout()
 
     def render_sample_data(self, sample_data_token: str, with_anns: bool=True,
-                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None) -> None:
+                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None):
         """
         Render sample data onto axis.
         :param sample_data_token: Sample_data token.
@@ -592,7 +592,7 @@ class NuScenesExplorer:
         ax.set_aspect('equal')
 
     def render_annotation(self, anntoken: str, margin: float=10, view: np.ndarray=np.eye(4),
-                          box_vis_level: BoxVisibility=BoxVisibility.ANY) -> None:
+                          box_vis_level: BoxVisibility=BoxVisibility.ANY):
         """
         Render selected annotation.
         :param anntoken: Sample_annotation token.
@@ -646,7 +646,7 @@ class NuScenesExplorer:
             c = np.array(self.get_color(box.name)) / 255.0
             box.render(axes[1], view=camera_intrinsic, normalize=True, colors=[c, c, c])
 
-    def render_instance(self, instance_token: str) -> None:
+    def render_instance(self, instance_token: str):
         """
         Finds the annotation of the given instance that is closest to the vehicle, and then renders it.
         """
@@ -664,7 +664,7 @@ class NuScenesExplorer:
         self.render_annotation(closest[1])
 
     def render_scene(self, scene_token: str, freq: float=10, imsize: Tuple[float, float]=(640, 360),
-                     out_path: str=None) -> None:
+                     out_path: str=None):
         """
         Renders a full scene with all camera channels.
         :param scene_token: Unique identifier of scene to render.
@@ -827,7 +827,7 @@ class NuScenesExplorer:
         cv2.destroyAllWindows()
 
     def render_egoposes_on_map(self, log_location: str, scene_tokens: List=None, demo_ss_factor: float=2.0) \
-            -> None:
+           :
         """
         Renders ego poses a the map. These can be filtered by location or scene.
         :param log_location: Name of the location, e.g. "singapore-onenorth", "boston-seaport".
