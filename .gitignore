@@ -20,3 +20,4 @@ doc
 .project
 .pydevproject
 _ext
+*egg-info
