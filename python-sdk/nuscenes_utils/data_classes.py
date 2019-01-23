@@ -21,6 +21,7 @@ class PointCloud:
         Class for manipulating and viewing point clouds.
         :param points: <np.float: 4, n>. Input point cloud matrix.
         """
+        points = points[0:4,:]
         assert points.shape[0] == 4, 'Error: Pointcloud points must have format: 4 x n'
         self.points = points
 
