@@ -6,7 +6,6 @@
 from functools import reduce
 import struct
 from typing import Tuple, List
-from abc import ABC, abstractmethod
 import os.path as osp
 
 import cv2
@@ -17,7 +16,7 @@ from matplotlib.axes import Axes
 from nuscenes.utils.geometry_utils import view_points, transform_matrix
 
 
-class PointCloud(ABC):
+class PointCloud():
     """
     Abstract class for manipulating and viewing point clouds.
     Every point cloud (lidar and radar) consists of points where:
@@ -30,11 +29,12 @@ class PointCloud(ABC):
         Initialize a point cloud and check it has the correct dimensions.
         :param points: <np.float: d, n>. d-dimensional input point cloud matrix.
         """
-        assert points.shape[0] == self.nbr_dims(), 'Error: Pointcloud points must have format: %d x n' % self.nbr_dims()
+        if self.nbr_dims():
+            assert points.shape[0] == self.nbr_dims(), 'Error: Pointcloud points must have format: %d x n' % self.nbr_dims()
+        
         self.points = points
 
     @staticmethod
-    @abstractmethod
     def nbr_dims() -> int:
         """
         Returns the number of dimensions.
@@ -43,7 +43,6 @@ class PointCloud(ABC):
         pass
 
     @classmethod
-    @abstractmethod
     def from_file(cls, file_name: str) -> 'PointCloud':
         """
         Loads point cloud from disk.
