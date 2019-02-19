@@ -1,4 +1,4 @@
-# nuScenes dev-kit. Version 0.1
+# nuScenes dev-kit.
 # Code written by Oscar Beijbom, 2018.
 # Licensed under the Creative Commons [see licence.txt]
 
@@ -8,6 +8,7 @@ import math
 from enum import IntEnum
 
 import numpy as np
+from pyquaternion import Quaternion
 
 
 class BoxVisibility(IntEnum):
@@ -88,12 +89,12 @@ def view_points(points: np.ndarray, view: np.ndarray, normalize: bool):
     return points
 
 
-def box_in_image(box, intrinsic: np.ndarray, imsize: Tuple[int], vis_level: int=BoxVisibility.ANY):
+def box_in_image(box, intrinsic: np.ndarray, imsize: Tuple[int, int], vis_level: int=BoxVisibility.ANY) -> bool:
     """
     Check if a box is visible inside an image without accounting for occlusions.
     :param box: The box to be checked.
     :param intrinsic: <float: 3, 3>. Intrinsic camera matrix.
-    :param imsize: (width <int>, height <int>).
+    :param imsize: (width, height).
     :param vis_level: One of the enumerations of <BoxVisibility>.
     :return True if visibility condition is satisfied.
     """
@@ -116,3 +117,26 @@ def box_in_image(box, intrinsic: np.ndarray, imsize: Tuple[int], vis_level: int=
         return True
     else:
         raise ValueError("vis_level: {} not valid".format(vis_level))
+
+
+def transform_matrix(translation: np.ndarray=np.array([0, 0, 0]), rotation: Quaternion=Quaternion([1, 0, 0, 0]),
+                     inverse: bool=False) -> np.ndarray:
+    """
+    Convert pose to transformation matrix.
+    :param translation: <np.float32: 3>. Translation in x, y, z.
+    :param rotation: Rotation in quaternions (w ri rj rk).
+    :param inverse: Whether to compute inverse transform matrix.
+    :return: <np.float32: 4, 4>. Transformation matrix.
+    """
+    tm = np.eye(4)
+
+    if inverse:
+        rot_inv = rotation.rotation_matrix.T
+        trans = np.transpose(-np.array(translation))
+        tm[:3, :3] = rot_inv
+        tm[:3, 3] = rot_inv.dot(trans)
+    else:
+        tm[:3, :3] = rotation.rotation_matrix
+        tm[:3, 3] = np.transpose(np.array(translation))
+
+    return tm

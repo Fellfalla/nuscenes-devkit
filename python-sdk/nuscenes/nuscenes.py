@@ -20,9 +20,9 @@ from pyquaternion import Quaternion
 import sklearn.metrics
 from tqdm import tqdm
 
-from nuscenes_utils.map_mask import MapMask
-from nuscenes_utils.data_classes import PointCloud, Box
-from nuscenes_utils.geometry_utils import view_points, box_in_image, quaternion_slerp, BoxVisibility
+from nuscenes.utils.map_mask import MapMask
+from nuscenes.utils.data_classes import LidarPointCloud, RadarPointCloud, Box
+from nuscenes.utils.geometry_utils import view_points, box_in_image, quaternion_slerp, BoxVisibility
 
 
 PYTHON_VERSION = sys.version_info[0]
@@ -185,8 +185,8 @@ class NuScenes:
                 matches.append(member['token'])
         return matches
 
-    def get_sample_data_path(self, sample_data_token: str):
-        """ Returns the path to a sample_data """
+    def get_sample_data_path(self, sample_data_token: str) -> str:
+        """ Returns the path to a sample_data. """
 
         sd_record = self.get('sample_data', sample_data_token)
         return osp.join(self.dataroot, sd_record['filename'])
@@ -195,6 +195,7 @@ class NuScenes:
             Tuple[str, List[Box], np.array]:
         """
         Returns the data path as well as all annotations related to that sample_data.
+        Note that the boxes are transformed into the current sensor's coordinate frame.
         :param sample_data_token: <str>. Sample_data token.
         :param box_vis_level: <BoxVisibility>. If sample_data is an image, this sets required visibility for boxes.
         :param selected_anntokens: [<str>]. If provided only return the selected annotation.
@@ -307,7 +308,54 @@ class NuScenes:
                 boxes.append(box)
         return boxes
 
-    def list_categories(self):
+    def box_velocity(self, sample_annotation_token: str, max_time_diff: float=1.5) -> np.ndarray:
+        """
+        Estimate the velocity for an annotation.
+        If possible, we compute the centered difference between the previous and next frame.
+        Otherwise we use the difference between the current and previous/next frame.
+        If the velocity cannot be estimated, values are set to np.nan.
+        :param sample_annotation_token: Unique sample_annotation identifier.
+        :param max_time_diff: Max allowed time diff between consecutive samples that are used to estimate velocities.
+        :return: <np.float: 3>. Velocity in x/y/z direction in m/s.
+        """
+
+        current = self.get('sample_annotation', sample_annotation_token)
+        has_prev = current['prev'] != ''
+        has_next = current['next'] != ''
+
+        # Cannot estimate velocity for a single annotation.
+        if not has_prev and not has_next:
+            return np.array([np.nan, np.nan, np.nan])
+
+        if has_prev:
+            first = self.get('sample_annotation', current['prev'])
+        else:
+            first = current
+
+        if has_next:
+            last = self.get('sample_annotation', current['next'])
+        else:
+            last = current
+
+        pos_last = np.array(last['translation'])
+        pos_first = np.array(first['translation'])
+        pos_diff = pos_last - pos_first
+
+        time_last = 1e-6 * self.get('sample', last['sample_token'])['timestamp']
+        time_first = 1e-6 * self.get('sample', first['sample_token'])['timestamp']
+        time_diff = time_last - time_first
+
+        if has_next and has_prev:
+            # If doing centered difference, allow for up to double the max_time_diff.
+            max_time_diff *= 2
+
+        if time_diff > max_time_diff:
+            # If time_diff is too big, don't return an estimate.
+            return np.array([np.nan, np.nan, np.nan])
+        else:
+            return pos_diff / time_diff
+
+    def list_categories(self) -> None:
         self.explorer.list_categories()
 
     def list_attributes(self):
@@ -324,12 +372,13 @@ class NuScenes:
         self.explorer.render_pointcloud_in_image(sample_token, dot_size, pointsensor_channel=pointsensor_channel,
                                                  camera_channel=camera_channel)
 
-    def render_sample(self, sample_token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY):
-        self.explorer.render_sample(sample_token, box_vis_level)
+    def render_sample(self, sample_token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY, nsweeps: int=1) -> None:
+        self.explorer.render_sample(sample_token, box_vis_level, nsweeps=nsweeps)
 
     def render_sample_data(self, sample_data_token: str, with_anns: bool=True,
-                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None):
-        self.explorer.render_sample_data(sample_data_token, with_anns, box_vis_level, axes_limit, ax)
+                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None,
+                           nsweeps: int=1) -> None:
+        self.explorer.render_sample_data(sample_data_token, with_anns, box_vis_level, axes_limit, ax, nsweeps=nsweeps)
 
     def render_annotation(self, sample_annotation_token: str, margin: float=10, view: np.ndarray=np.eye(4),
                           box_vis_level: BoxVisibility=BoxVisibility.ANY):
@@ -339,7 +388,7 @@ class NuScenes:
         self.explorer.render_instance(instance_token)
 
     def render_scene(self, scene_token: str, freq: float=10, imsize: Tuple[float, float]=(640, 360),
-                     out_path : str=None):
+                     out_path: str=None) -> None:
         self.explorer.render_scene(scene_token, freq, imsize, out_path)
 
     def render_scene_channel(self, scene_token: str, channel: str='CAM_FRONT', imsize: Tuple[float, float]=(640, 360)):
@@ -451,8 +500,11 @@ class NuScenesExplorer:
 
         cam = self.nusc.get('sample_data', camera_token)
         pointsensor = self.nusc.get('sample_data', pointsensor_token)
-
-        pc = PointCloud.from_file(osp.join(self.nusc.dataroot, pointsensor['filename']))
+        pcl_path = osp.join(self.nusc.dataroot, pointsensor['filename'])
+        if pointsensor['sensor_modality'] == 'lidar':
+            pc = LidarPointCloud.from_file(pcl_path)
+        else:
+            pc = RadarPointCloud.from_file(pcl_path)
         im = Image.open(osp.join(self.nusc.dataroot, cam['filename']))
 
         # Points live in the point sensor frame. So they need to be transformed via global to the image plane.
@@ -519,73 +571,176 @@ class NuScenesExplorer:
         plt.scatter(points[0, :], points[1, :], c=coloring, s=dot_size)
         plt.axis('off')
 
-    def render_sample(self, token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY):
+    def render_sample(self, token: str, box_vis_level: BoxVisibility=BoxVisibility.ANY, nsweeps: int=1) -> None:
         """
         Render all LIDAR and camera sample_data in sample along with annotations.
         :param token: Sample token.
         :param box_vis_level: If sample_data is an image, this sets required visibility for boxes.
+        :param nsweeps: Number of sweeps for lidar and radar.
         """
         record = self.nusc.get('sample', token)
 
-        # RADAR rendering not implemented yet. So only keep LIDAR and vision.
-        selected_data = {}
+        # Separate RADAR from LIDAR and vision.
+        radar_data = {}
+        nonradar_data = {}
         for channel, token in record['data'].items():
             sd_record = self.nusc.get('sample_data', token)
             sensor_modality = sd_record['sensor_modality']
             if sensor_modality in ['lidar', 'camera']:
-                selected_data[channel] = token
+                nonradar_data[channel] = token
+            else:
+                radar_data[channel] = token
 
-        n = len(selected_data)
-        fig, axes = plt.subplots(int(np.ceil(n/2)), 2, figsize=(18, 27))
+        # Create plots.
+        n = 1 + len(nonradar_data)
+        cols = 2
+        fig, axes = plt.subplots(int(np.ceil(n/cols)), cols, figsize=(16, 24))
 
-        for (_, sd_token), ax in zip(selected_data.items(), axes.flatten()):
-            self.render_sample_data(sd_token, box_vis_level=box_vis_level, ax=ax)
+        # Plot radar into a single subplot.
+        ax = axes[0, 0]
+        for i, (_, sd_token) in enumerate(radar_data.items()):
+            self.render_sample_data(sd_token, with_anns=i == 0, box_vis_level=box_vis_level, ax=ax, nsweeps=nsweeps)
+        ax.set_title('Fused RADARs')
+
+        # Plot camera and lidar in separate subplots.
+        for (_, sd_token), ax in zip(nonradar_data.items(), axes.flatten()[1:]):
+            self.render_sample_data(sd_token, box_vis_level=box_vis_level, ax=ax, nsweeps=nsweeps)
+
         axes.flatten()[-1].axis('off')
         plt.tight_layout()
+        fig.subplots_adjust(wspace=0, hspace=0)
 
     def render_sample_data(self, sample_data_token: str, with_anns: bool=True,
-                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None):
+                           box_vis_level: BoxVisibility=BoxVisibility.ANY, axes_limit: float=40, ax: Axes=None,
+                           nsweeps: int=1) -> None:
         """
         Render sample data onto axis.
         :param sample_data_token: Sample_data token.
         :param with_anns: Whether to draw annotations.
         :param box_vis_level: If sample_data is an image, this sets required visibility for boxes.
-        :param axes_limit: Axes limit for lidar data (measured in meters).
+        :param axes_limit: Axes limit for lidar and radar (measured in meters).
         :param ax: Axes onto which to render.
+        :param nsweeps: Number of sweeps for lidar and radar.
         """
 
+        # Get sensor modality.
         sd_record = self.nusc.get('sample_data', sample_data_token)
         sensor_modality = sd_record['sensor_modality']
 
-        data_path, boxes, camera_intrinsic = self.nusc.get_sample_data(sample_data_token, box_vis_level=box_vis_level)
-
         if sensor_modality == 'lidar':
-            data = PointCloud.from_file(data_path)
+            # Get boxes in lidar frame.
+            _, boxes, _ = self.nusc.get_sample_data(sample_data_token, box_vis_level=box_vis_level)
+
+            # Get aggregated point cloud in lidar frame.
+            sample_rec = self.nusc.get('sample', sd_record['sample_token'])
+            chan = sd_record['channel']
+            ref_chan = 'LIDAR_TOP'
+            pc, times = LidarPointCloud.from_file_multisweep(self.nusc, sample_rec, chan, ref_chan, nsweeps=nsweeps)
+
+            # Init axes.
             if ax is None:
                 _, ax = plt.subplots(1, 1, figsize=(9, 9))
-            points = view_points(data.points[:3, :], np.eye(4), normalize=False)
-            ax.scatter(points[0, :], points[1, :], c=points[2, :], s=1)
+
+            # Show point cloud.
+            points = view_points(pc.points[:3, :], np.eye(4), normalize=False)
+            dists = np.sqrt(np.sum(pc.points[:2, :] ** 2, axis=0))
+            colors = np.minimum(1, dists/axes_limit/np.sqrt(2))
+            ax.scatter(points[0, :], points[1, :], c=colors, s=0.2)
+
+            # Show ego vehicle.
+            ax.plot(0, 0, 'x', color='black')
+
+            # Show boxes.
             if with_anns:
                 for box in boxes:
                     c = np.array(self.get_color(box.name)) / 255.0
-                    box.render(ax, view=np.eye(4), colors=[c, c, c])
+                    box.render(ax, view=np.eye(4), colors=(c, c, c))
+
+            # Limit visible range.
+            ax.set_xlim(-axes_limit, axes_limit)
+            ax.set_ylim(-axes_limit, axes_limit)
+
+        elif sensor_modality == 'radar':
+            # Get boxes in lidar frame.
+            sample_rec = self.nusc.get('sample', sd_record['sample_token'])
+            lidar_token = sample_rec['data']['LIDAR_TOP']
+            _, boxes, _ = self.nusc.get_sample_data(lidar_token, box_vis_level=box_vis_level)
+
+            # Get aggregated point cloud in lidar frame.
+            # The point cloud is transformed to the lidar frame for visualization purposes.
+            chan = sd_record['channel']
+            ref_chan = 'LIDAR_TOP'
+            pc, times = RadarPointCloud.from_file_multisweep(self.nusc, sample_rec, chan, ref_chan, nsweeps=nsweeps)
+
+            # Transform radar velocities (x is front, y is left), as these are not transformed when loading the point
+            # cloud.
+            radar_cs_record = self.nusc.get('calibrated_sensor', sd_record['calibrated_sensor_token'])
+            lidar_sd_record = self.nusc.get('sample_data', lidar_token)
+            lidar_cs_record = self.nusc.get('calibrated_sensor', lidar_sd_record['calibrated_sensor_token'])
+            velocities = pc.points[8:10, :]  # Compensated velocity
+            velocities = np.vstack((velocities, np.zeros(pc.points.shape[1])))
+            velocities = np.dot(Quaternion(radar_cs_record['rotation']).rotation_matrix, velocities)
+            velocities = np.dot(Quaternion(lidar_cs_record['rotation']).rotation_matrix.T, velocities)
+            velocities[2, :] = np.zeros(pc.points.shape[1])
+
+            # Init axes.
+            if ax is None:
+                _, ax = plt.subplots(1, 1, figsize=(9, 9))
+
+            # Show point cloud.
+            points = view_points(pc.points[:3, :], np.eye(4), normalize=False)
+            dists = np.sqrt(np.sum(pc.points[:2, :] ** 2, axis=0))
+            colors = np.minimum(1, dists / axes_limit / np.sqrt(2))
+            sc = ax.scatter(points[0, :], points[1, :], c=colors, s=3)
+
+            # Show velocities.
+            points_vel = view_points(pc.points[:3, :] + velocities, np.eye(4), normalize=False)
+            max_delta = 10
+            deltas_vel = points_vel - points
+            deltas_vel = 3 * deltas_vel  # Arbitrary scaling
+            deltas_vel = np.clip(deltas_vel, -max_delta, max_delta)  # Arbitrary clipping
+            colors_rgba = sc.to_rgba(colors)
+            for i in range(points.shape[1]):
+                ax.arrow(points[0, i], points[1, i], deltas_vel[0, i], deltas_vel[1, i], color=colors_rgba[i])
+
+            # Show ego vehicle.
+            ax.plot(0, 0, 'x', color='black')
+
+            # Show boxes.
+            if with_anns:
+                for box in boxes:
+                    c = np.array(self.get_color(box.name)) / 255.0
+                    box.render(ax, view=np.eye(4), colors=(c, c, c))
+
+            # Limit visible range.
             ax.set_xlim(-axes_limit, axes_limit)
             ax.set_ylim(-axes_limit, axes_limit)
 
         elif sensor_modality == 'camera':
+            # Load boxes and image.
+            data_path, boxes, camera_intrinsic = self.nusc.get_sample_data(sample_data_token,
+                                                                           box_vis_level=box_vis_level)
             data = Image.open(data_path)
+
+            # Init axes.
             if ax is None:
                 _, ax = plt.subplots(1, 1, figsize=(9, 16))
+
+            # Show image.
             ax.imshow(data)
+
+            # Show boxes.
             if with_anns:
                 for box in boxes:
                     c = np.array(self.get_color(box.name)) / 255.0
-                    box.render(ax, view=camera_intrinsic, normalize=True, colors=[c, c, c])
+                    box.render(ax, view=camera_intrinsic, normalize=True, colors=(c, c, c))
+
+            # Limit visible range.
             ax.set_xlim(0, data.size[0])
             ax.set_ylim(data.size[1], 0)
 
         else:
-            raise ValueError("RADAR rendering not implemented yet.")
+            raise ValueError("Unknown sensor modality!")
 
         ax.axis('off')
         ax.set_title(sd_record['channel'])
@@ -603,7 +758,6 @@ class NuScenesExplorer:
 
         ann_record = self.nusc.get('sample_annotation', anntoken)
         sample_record = self.nusc.get('sample', ann_record['sample_token'])
-
         assert 'LIDAR_TOP' in sample_record['data'].keys(), 'No LIDAR_TOP in data, cant render'
 
         fig, axes = plt.subplots(1, 2, figsize=(18, 9))
@@ -624,11 +778,10 @@ class NuScenesExplorer:
         # Plot LIDAR view
         lidar = sample_record['data']['LIDAR_TOP']
         data_path, boxes, camera_intrinsic = self.nusc.get_sample_data(lidar, selected_anntokens=[anntoken])
-
-        PointCloud.from_file(data_path).render_height(axes[0], view=view)
+        LidarPointCloud.from_file(data_path).render_height(axes[0], view=view)
         for box in boxes:
             c = np.array(self.get_color(box.name)) / 255.0
-            box.render(axes[0], view=view, colors=[c, c, c])
+            box.render(axes[0], view=view, colors=(c, c, c))
             corners = view_points(boxes[0].corners(), view, False)[:2, :]
             axes[0].set_xlim([np.min(corners[0, :]) - margin, np.max(corners[0, :]) + margin])
             axes[0].set_ylim([np.min(corners[1, :]) - margin, np.max(corners[1, :]) + margin])
@@ -644,18 +797,19 @@ class NuScenesExplorer:
         axes[1].set_aspect('equal')
         for box in boxes:
             c = np.array(self.get_color(box.name)) / 255.0
-            box.render(axes[1], view=camera_intrinsic, normalize=True, colors=[c, c, c])
+            box.render(axes[1], view=camera_intrinsic, normalize=True, colors=(c, c, c))
 
     def render_instance(self, instance_token: str):
         """
         Finds the annotation of the given instance that is closest to the vehicle, and then renders it.
+        :param instance_token: The instance token.
         """
         ann_tokens = self.nusc.field2token('sample_annotation', 'instance_token', instance_token)
         closest = [np.inf, None]
         for ann_token in ann_tokens:
             ann_record = self.nusc.get('sample_annotation', ann_token)
             sample_record = self.nusc.get('sample', ann_record['sample_token'])
-            sample_data_record = self.nusc.get('sample_data', sample_record['data']['lidar'])
+            sample_data_record = self.nusc.get('sample_data', sample_record['data']['LIDAR_TOP'])
             pose_record = self.nusc.get('ego_pose', sample_data_record['ego_pose_token'])
             dist = np.linalg.norm(np.array(pose_record['translation']) - np.array(ann_record['translation']))
             if dist < closest[0]:
@@ -673,7 +827,7 @@ class NuScenesExplorer:
         :param out_path: Optional path to write a video file of the rendered frames.
         """
 
-        assert imsize[0] / imsize[1] == 16/9, "Aspect ratio should be 16/9."
+        assert imsize[0] / imsize[1] == 16 / 9, "Aspect ratio should be 16/9."
 
         # Get records from DB.
         scene_rec = self.nusc.get('scene', scene_token)
@@ -692,7 +846,7 @@ class NuScenesExplorer:
 
         horizontal_flip = ['CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT']  # Flip these for aesthetic reasons.
 
-        time_step = 1/freq * 1e6  # Time-stamps are measured in micro-seconds.
+        time_step = 1 / freq * 1e6  # Time-stamps are measured in micro-seconds.
 
         window_name = '{}'.format(scene_rec['name'])
         cv2.namedWindow(window_name)
@@ -702,6 +856,8 @@ class NuScenesExplorer:
         if out_path is not None:
             fourcc = cv2.VideoWriter_fourcc(*'MJPG')
             out = cv2.VideoWriter(out_path, fourcc, freq, canvas.shape[1::-1])
+        else:
+            out = None
 
         # Load first sample_data record for each channel
         current_recs = {}  # Holds the current record to be displayed by channel.
@@ -738,7 +894,7 @@ class NuScenesExplorer:
                     im = cv2.imread(impath)
                     for box in boxes:
                         c = self.get_color(box.name)
-                        box.render_cv2(im, view=camera_intrinsic, normalize=True, colors=[c, c, c])
+                        box.render_cv2(im, view=camera_intrinsic, normalize=True, colors=(c, c, c))
 
                     im = cv2.resize(im, imsize)
                     if channel in horizontal_flip:
@@ -805,7 +961,7 @@ class NuScenesExplorer:
             im = cv2.imread(impath)
             for box in boxes:
                 c = self.get_color(box.name)
-                box.render_cv2(im, view=camera_intrinsic, normalize=True, colors=[c, c, c])
+                box.render_cv2(im, view=camera_intrinsic, normalize=True, colors=(c, c, c))
 
             # Render
             im = cv2.resize(im, imsize)
@@ -838,7 +994,7 @@ class NuScenesExplorer:
         # Settings
         close_dist = 100
         pixel_to_meter = 0.1
-        ignore_logfiles = ['n008-2018-05-21-11-06-59-0400'] # Exclude older logs with incompatible maps
+        ignore_logfiles = ['n008-2018-05-21-11-06-59-0400']  # Exclude older logs with incompatible maps
 
         # Get logs by location
         log_tokens = [l['token'] for l in self.nusc.log if l['location'] == log_location
@@ -853,6 +1009,7 @@ class NuScenesExplorer:
             print('Warning: Found 0 valid scenes for location %s!' % log_location)
 
         map_poses = []
+        map_mask = None
 
         for scene_token in tqdm(scene_tokens_location):
 
@@ -887,7 +1044,9 @@ class NuScenesExplorer:
         # Plot.
         _, ax = plt.subplots(1, 1, figsize=(10, 10))
         mask = Image.fromarray(map_mask.mask)
-        ax.imshow(mask.resize((int(mask.size[0] / demo_ss_factor), int(mask.size[1] / demo_ss_factor)), resample=Image.NEAREST))
+        size_x = int(mask.size[0] / demo_ss_factor)
+        size_y = int(mask.size[1] / demo_ss_factor)
+        ax.imshow(mask.resize((size_x, size_y), resample=Image.NEAREST))
         title = 'Number of ego poses within {}m in {}'.format(close_dist, log_location)
         ax.set_title(title, color='w')
         sc = ax.scatter(map_poses[:, 0] / demo_ss_factor, map_poses[:, 1] / demo_ss_factor, s=10, c=close_poses)
@@ -895,3 +1054,4 @@ class NuScenesExplorer:
         plt.rcParams['figure.facecolor'] = 'black'
         color_bar_ticklabels = plt.getp(color_bar.ax.axes, 'yticklabels')
         plt.setp(color_bar_ticklabels, color='w')
+        plt.rcParams['figure.facecolor'] = 'white'  # Reset for future plots

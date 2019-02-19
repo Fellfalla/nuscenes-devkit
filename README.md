@@ -7,13 +7,17 @@ Welcome to the devkit of the [nuScenes](https://www.nuscenes.org) dataset.
 - [Changelog](#changelog)
 - [Dataset download](#dataset-download)
 - [Devkit setup](#devkit-setup)
-- [Getting started](#getting-started)
+- [Tutorial](#tutorial)
+- [Object detection task](#object-detection-task)
 - [Frequently asked questions](#frequently-asked-questions)
 - [Setting up a new virtual environment](#setting-up-a-new-virtual-environment)
+- [Backward compatibility](#backward-compatibility)
 
 ## Changelog
-- Oct. 4, 2018: Code to parse RADAR data released
-- Sep. 12, 2018: Devkit for teaser dataset released
+- Dec. 20, 2018: Initial evaluation code released. See notes on [backward compatibility](#backward-compatibility).
+- Nov. 21, 2018: RADAR filtering and multi sweep aggregation.
+- Oct. 4, 2018: Code to parse RADAR data released.
+- Sep. 12, 2018: Devkit for teaser dataset released.
 
 ## Dataset download
 To download nuScenes you need to go to the [Download page](https://www.nuscenes.org/download), 
@@ -24,10 +28,10 @@ Please unpack the archives to the `/data/nuscenes` folder \*without\* overwritin
 Eventually you should have the following folder structure:
 ```
 /data/nuscenes
-    maps	-	Large image files (~500 Gigapixel) that depict the drivable surface and sidewalks in the scene
-    samples	-	Sensor data for keyframes
-    sweeps	-	Sensor data for intermediate frames
-    v0.1	-	JSON tables that include all the meta data and annotations
+    maps	-	Large image files (~500 Gigapixel) that depict the drivable surface and sidewalks in the scene.
+    samples	-	Sensor data for keyframes.
+    sweeps	-	Sensor data for intermediate frames.
+    v0.1	-	JSON tables that include all the meta data and annotations.
 ```
 If you want to use another folder, specify the `dataroot` parameter of the NuScenes class below.
 
@@ -36,10 +40,9 @@ Download the devkit to your home directory using:
 ```
 cd && git clone https://github.com/nutonomy/nuscenes-devkit.git
 ```
-The devkit is tested for Python 3.7. 
-We may add backward compatibility in future releases.
-To install the required packages, run the following command in your favourite virtual environment. If you need help in 
-installing Python 3.7 or in setting up a new virtual environment, you can look at [these instructions](#setting-up-a-new-virtual-environment):
+The devkit is tested for Python 3.7.
+To install Python 3.7 and set up a new virtual environment, you can look at [these instructions](#setting-up-a-new-virtual-environment).
+To install the required packages, run the following command in your favourite virtual environment:
 ```
 pip install -r requirements.txt
 ```
@@ -49,13 +52,16 @@ following to your `~/.virtualenvs/nuscenes/bin/postactivate` (virtual environmen
 export PYTHONPATH="${PYTHONPATH}:$HOME/nuscenes-devkit/python-sdk"
 ```
 
-## Getting started
+## Tutorial
 To get started with the nuScenes devkit, please run the tutorial as an IPython notebook:
 ```
 jupyter notebook $HOME/nuscenes-devkit/python-sdk/tutorial.ipynb
 ```
-In case you want to avoid downloading and setting up the data, you can also take a look at the same [notebook on 
-Github](https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/tutorial.ipynb). To learn more about the dataset, go to [nuScenes.org](https://www.nuscenes.org) or take a look at the [database schema](https://github.com/nutonomy/nuscenes-devkit/blob/master/schema.md) and [annotator instructions](https://github.com/nutonomy/nuscenes-devkit/blob/master/instructions.md).
+In case you want to avoid downloading and setting up the data, you can also take a look at the [rendered notebook on nuScenes.org](https://www.nuscenes.org/tutorial).
+To learn more about the dataset, go to [nuScenes.org](https://www.nuscenes.org) or take a look at the [database schema](https://github.com/nutonomy/nuscenes-devkit/blob/master/schema.md) and [annotator instructions](https://github.com/nutonomy/nuscenes-devkit/blob/master/instructions.md).
+
+## Object detection task
+For instructions related to the object detection task, the results format, classes and evaluation metrics, please refer to [this readme](https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/README.md).
 
 ## Frequently asked questions
 1) *How come some objects visible in the camera images are not annotated?* In the [annotator instructions](https://github.com/nutonomy/nuscenes-devkit/blob/master/instructions.md) we specify that an object should only be annotated if it is covered by at least one LIDAR point. This is done to have precise location annotations, speedup the annotation process and remove faraway objects.
@@ -114,6 +120,11 @@ To deactivate the virtual environment, use:
 ```
 deactivate
 ```
+
+## Backward compatibility
+- Dec. 20, 2018: We restructured the nuscenes-devkit code, which breaks backward compatibility.
+  The new structure has a top-level package `nuscenes` which contains packages `eval`, `export` and `utils`.
+  Therefor existing imports from `nuscenes_utils` should be replaced by `nuscenes.nuscenes`.
 
 
 ![](https://www.nuscenes.org/public/images/nuscenes-example.png)
