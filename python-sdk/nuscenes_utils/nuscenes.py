@@ -20,9 +20,9 @@ from pyquaternion import Quaternion
 import sklearn.metrics
 from tqdm import tqdm
 
-from .map_mask import MapMask
-from .data_classes import PointCloud, Box
-from .geometry_utils import view_points, box_in_image, quaternion_slerp, BoxVisibility
+from nuscenes_utils.map_mask import MapMask
+from nuscenes_utils.data_classes import PointCloud, Box
+from nuscenes_utils.geometry_utils import view_points, box_in_image, quaternion_slerp, BoxVisibility
 
 
 PYTHON_VERSION = sys.version_info[0]

@@ -11,8 +11,7 @@ import numpy as np
 from pyquaternion import Quaternion
 from matplotlib.axes import Axes
 
-
-from .geometry_utils import view_points
+from nuscenes_utils.geometry_utils import view_points
 
 
 class PointCloud:
