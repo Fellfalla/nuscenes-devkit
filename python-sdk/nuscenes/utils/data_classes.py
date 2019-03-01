@@ -584,20 +584,13 @@ class Box:
                  colors[0][::-1], linewidth)
 
         
-    def box2d(self, camera_intrinsic: np.ndarray, imsize: tuple=None, normalize: bool=False) -> np.array:
+    def box2d(self, camera_intrinsic: np.ndarray) -> np.array:
         """
         Get the according 2-D bounding box projected on the given camera
 
         :param camera_instrinsic: [np.array] 3x3 intrinsic camera matrice
-        :param imsize: (int, int) Width, Height of the image in pixels
-        :param normalize: [bool] True for normalizing the x and y positions of the 2d box according to the image
-            If you request normalizing, you need to insert imsize as well.
-            Origin (x=0, y=0) will be top left of the image
-
         :returns: <np.array 4> box2d as vector with min and max dimensions [xmin, ymin, xmax, ymax]
         """
-
-        assert normalize is False or isinstance(imsize, tuple), "If you want to normalize 2-D bounding box, you need to insert imsize"
 
         corners_3d = self.corners()
         corners_img = view_points(points=corners_3d, view=camera_intrinsic, normalize=True)[:2, :]
@@ -606,12 +599,6 @@ class Box:
         ymin = min(corners_img[1])
         ymax = max(corners_img[1])
 
-        if normalize:
-            xmin /= imsize[0]
-            xmax /= imsize[0]
-            ymin /= imsize[1]
-            ymax /= imsize[1]
-            
         box2d = np.array([xmin, ymin, xmax, ymax])
 
         return box2d
