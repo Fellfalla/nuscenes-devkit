@@ -17,11 +17,12 @@ class TestNuScenes(unittest.TestCase):
         """
 
         assert 'NUSCENES' in os.environ, 'Set NUSCENES env. variable to enable tests.'
-        nusc = NuScenes(version='v1.0-mini', dataroot='~/data/nuscenes', verbose=False)
+        nusc = NuScenes(version='v1.0-trainval', dataroot='~/data/nuscenes', verbose=False)
 
         # Trivial assert statement
-        self.assertEqual(nusc.table_root, os.path.join('~/data/nuscenes', 'v1.0-mini'))
+        self.assertEqual(nusc.table_root, os.path.join('~/data/nuscenes', 'v1.0-trainval'))
 
 
 if __name__ == '__main__':
+    nusc = NuScenes(version='v1.0-trainval', dataroot='~/data/nuscenes', verbose=False)
     unittest.main()
