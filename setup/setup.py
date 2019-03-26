@@ -9,6 +9,23 @@ with open('requirements.txt') as f:
     requirements = f.read().splitlines()
 
 
+def get_dirlist(_rootdir):
+    dirlist = []
+
+    with os.scandir(_rootdir) as rit:
+        for entry in rit:
+            if not entry.name.startswith('.') and entry.is_dir():
+                dirlist.append(entry.path)
+                dirlist += get_dirlist(entry.path)
+
+    return dirlist
+
+
+# Get subfolders recursively
+os.chdir('..')
+rootdir = 'python-sdk'
+packages = [d.replace('/', '.').replace('{}.'.format(rootdir), '') for d in get_dirlist(rootdir)]
+
 setuptools.setup(
     name='nuscenes-devkit',
     version='1.0.0',
@@ -21,12 +38,10 @@ setuptools.setup(
     url="https://github.com/nutonomy/nuscenes-devkit",
     python_requires='>=3.5',
     install_requires=requirements,
-    packages=['nuscenes', 'nuscenes.eval', 'nuscenes.utils'],
+    packages=packages,
     package_dir={'': 'python-sdk'},
     classifiers=[
         "Programming Language :: Python :: 3.5",
         "Operating System :: OS Independent",
     ],
 )
-
-
