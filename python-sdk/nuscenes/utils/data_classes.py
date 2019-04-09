@@ -58,7 +58,8 @@ class PointCloud():
                              chan: str,
                              ref_chan: str,
                              nsweeps: int = 26,
-                             min_distance: float = 1.0):
+                             min_distance: float = 1.0,
+                             merge: bool = True):
         """
         Return a point cloud that aggregates multiple sweeps.
         As every sweep is in a different coordinate frame, we need to map the coordinates to a single reference frame.
@@ -69,6 +70,7 @@ class PointCloud():
         :param ref_chan: The reference channel of the current sample_rec that the point clouds are mapped to.
         :param nsweeps: Number of sweeps to aggregated.
         :param min_distance: Distance below which points are discarded.
+        :param merge: Merge point clouds to one point cloud
         :return: (all_pc, all_times). The aggregated point cloud and timestamps.
         """
 
@@ -94,6 +96,7 @@ class PointCloud():
         # Aggregate current and previous sweeps.
         sample_data_token = sample_rec['data'][chan]
         current_sd_rec = nusc.get('sample_data', sample_data_token)
+        sweep_pcs = []
         for _ in range(nsweeps):
             # Load up the pointcloud.
             current_pc = cls.from_file(osp.join(nusc.dataroot, current_sd_rec['filename']))
@@ -118,14 +121,21 @@ class PointCloud():
             times = time_lag * np.ones((1, current_pc.nbr_points()))
             all_times = np.hstack((all_times, times))
 
-            # Merge with key pc.
-            all_pc.points = np.hstack((all_pc.points, current_pc.points))
+            sweep_pcs.append(current_pc)
 
             # Abort if there are no previous sweeps.
             if current_sd_rec['prev'] == '':
                 break
             else:
                 current_sd_rec = nusc.get('sample_data', current_sd_rec['prev'])
+
+        if merge:
+            # Merge with key pc.
+            for sweep_pc in sweep_pcs:
+                all_pc.points = np.hstack((all_pc.points, sweep_pc.points))
+        else:
+            # we are good to go
+            all_pc = sweep_pcs
 
         return all_pc, all_times
 
