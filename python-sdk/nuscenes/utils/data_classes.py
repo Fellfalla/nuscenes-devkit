@@ -133,6 +133,8 @@ class PointCloud():
             # Merge with key pc.
             for sweep_pc in sweep_pcs:
                 all_pc.points = np.hstack((all_pc.points, sweep_pc.points))
+            
+            all_pc = [all_pc]
         else:
             # we are good to go
             all_pc = sweep_pcs
