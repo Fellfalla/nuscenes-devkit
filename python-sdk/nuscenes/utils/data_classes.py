@@ -121,7 +121,7 @@ class PointCloud():
             times = time_lag * np.ones((1, current_pc.nbr_points()))
             all_times = np.hstack((all_times, times))
 
-            sweep_pcs.append(current_pc)
+            sweep_pcs.insert(0,current_pc)
 
             # Abort if there are no previous sweeps.
             if current_sd_rec['prev'] == '':
