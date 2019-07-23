@@ -4,7 +4,7 @@
 
 from enum import IntEnum
 from typing import Tuple
-
+import math
 import numpy as np
 from pyquaternion import Quaternion
 
@@ -143,3 +143,61 @@ def points_in_box(box: 'Box', points: np.ndarray, wlh_factor: float = 1.0):
     mask = np.logical_and(np.logical_and(mask_x, mask_y), mask_z)
 
     return mask
+
+def points_in_box2(box: 'Box', points: np.ndarray, wlh_tolerance: float = 0.0, angle_tolerance: float = 0.0):
+    """
+    Returns the bounding box corners.
+    :param wlh_factor: Multiply w, l, h by a factor to scale the box.
+    :return: <np.float: 3, 8>. First four corners are the ones facing forward.
+        The last four are the ones facing backwards.
+    """
+
+    # Create relative points np array
+    rel_points = np.empty(shape=points.shape)
+    
+    # Translate
+    x, y, z = box.center
+    rel_points[0, :] = points[0, :] - x
+    rel_points[1, :] = points[1, :] - y
+    rel_points[2, :] = points[2, :] - z
+
+    # Rotate
+    rel_points = np.dot(box.orientation.inverse.rotation_matrix, rel_points)
+
+
+    # incorporate tolerances
+    angle_tolerances = math.tan(angle_tolerance) * points[0, :]
+    max_wlh = box.wlh/2 + wlh_tolerance
+    min_wlh = -max_wlh
+    
+    mask_x = np.logical_and(min_wlh[1] <= rel_points[0,:] + angle_tolerances, rel_points[0,:] - angle_tolerances <= max_wlh[1])
+    mask_y = np.logical_and(min_wlh[0] <= rel_points[1,:] + angle_tolerances, rel_points[1,:] - angle_tolerances <= max_wlh[0])
+    mask_z = np.logical_and(min_wlh[2] <= rel_points[2,:] + angle_tolerances, rel_points[2,:] - angle_tolerances <= max_wlh[2])
+    mask = np.logical_and(np.logical_and(mask_x, mask_y), mask_z)
+
+    return mask
+
+
+if __name__ == "__main__":
+    import sys, os
+
+    # Local imports
+    if not __package__:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+        import nuscenes.utils  # noqa: F401
+        __package__ = "nuscenes.utils"
+
+    from .data_classes import Box
+
+    box = Box(center=[0.5,0.5,0.5], size=[1,1,1], orientation=Quaternion(axis=[1, 0, 0], angle=0))
+    points = np.array([
+        [0,0,0],
+        [0.5,0.5,0.5],
+        [1.1,1.0,1.0],
+        [1.0,1.1,1.0],
+        [1.0,1.0,1.1],
+    ])
+    points = np.swapaxes(points, 0,1)
+
+    mask = points_in_box2(box, points, wlh_tolerance=0.09)
+    print(mask)

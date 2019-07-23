@@ -1,4 +1,4 @@
-# nuScenes devkit
+# nuScenes devkit (python 3.6)
 Welcome to the devkit of the [nuScenes](https://www.nuscenes.org) dataset.
 ![](https://www.nuscenes.org/public/images/road.jpg)
 
