@@ -30,10 +30,10 @@ class TestMain(unittest.TestCase):
             shutil.rmtree(self.res_eval_folder)
 
     @staticmethod
-    def _mock_results(nusc, split):
+    def _mock_submission(nusc, split):
         """
-        Creates "reasonable" results by looping through the full val-set, and adding 1 prediction per GT.
-        Predictions will be permuted randomly along all axes.
+        Creates "reasonable" submission (results and metadata) by looping through the full val-set, and adding 1
+        prediction per GT. Predictions will be permuted randomly along all axes.
         """
 
         def random_class(category_name):
@@ -60,6 +60,13 @@ class TestMain(unittest.TestCase):
                 # Pick a random attribute otherwise.
                 return rel_attributes[np.random.randint(0, len(rel_attributes))]
 
+        mock_meta = {
+            'use_camera': False,
+            'use_lidar': True,
+            'use_radar': False,
+            'use_map': False,
+            'use_external': False,
+        }
         mock_results = {}
         splits = create_splits_scenes()
         val_samples = []
@@ -84,7 +91,11 @@ class TestMain(unittest.TestCase):
                         'attribute_name': random_attr(detection_name)
                     })
             mock_results[sample['token']] = sample_res
-        return mock_results
+        mock_submission = {
+            'meta': mock_meta,
+            'results': mock_results
+        }
+        return mock_submission
 
     def test_delta(self):
         """
@@ -99,13 +110,12 @@ class TestMain(unittest.TestCase):
         nusc = NuScenes(version='v1.0-mini', dataroot=os.environ['NUSCENES'], verbose=False)
 
         with open(self.res_mockup, 'w') as f:
-            json.dump(self._mock_results(nusc, 'mini_val'), f, indent=2)
+            json.dump(self._mock_submission(nusc, 'mini_val'), f, indent=2)
 
         cfg = config_factory('cvpr_2019')
-
         nusc_eval = NuScenesEval(nusc, cfg, self.res_mockup, eval_set='mini_val', output_dir=self.res_eval_folder,
                                  verbose=False)
-        metrics, md_list = nusc_eval.run()
+        metrics, md_list = nusc_eval.evaluate()
 
         # 1. Score = 0.22082865720221012. Measured on the branch "release_v0.2" on March 7 2019.
         # 2. Score = 0.2199307290627096. Changed to measure center distance from the ego-vehicle.
@@ -117,7 +127,7 @@ class TestMain(unittest.TestCase):
         # 8. Score = 0.24047129251302665. After bike racks bug.
         # 9. Score = 0.24104572227466886. After bug fix in calc_tp. Include the max recall and exclude the min recall.
         # 10. Score = 0.19449091580477748. Changed to use v1.0 mini_val split.
-        self.assertAlmostEqual(metrics.weighted_sum, 0.19449091580477748)
+        self.assertAlmostEqual(metrics.nd_score, 0.19449091580477748)
 
 
 if __name__ == '__main__':

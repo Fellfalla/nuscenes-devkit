@@ -7,6 +7,7 @@ import struct
 from abc import ABC, abstractmethod
 from functools import reduce
 from typing import Tuple, List, Dict
+import copy
 
 import cv2
 import numpy as np
@@ -20,7 +21,8 @@ class PointCloud():
     """
     Abstract class for manipulating and viewing point clouds.
     Every point cloud (lidar and radar) consists of points where:
-    - Dimensions 0, 1, 2 represent x, y, z coordinates. These are modified when the point cloud is rotated or translated.
+    - Dimensions 0, 1, 2 represent x, y, z coordinates.
+        These are modified when the point cloud is rotated or translated.
     - All other dimensions are optional. Hence these have to be manually modified if the reference frame changes.
     """
 
@@ -58,7 +60,8 @@ class PointCloud():
                              chan: str,
                              ref_chan: str,
                              nsweeps: int = 26,
-                             min_distance: float = 1.0):
+                             min_distance: float = 1.0,
+                             merge: bool = True):
         """
         Return a point cloud that aggregates multiple sweeps.
         As every sweep is in a different coordinate frame, we need to map the coordinates to a single reference frame.
@@ -69,6 +72,7 @@ class PointCloud():
         :param ref_chan: The reference channel of the current sample_rec that the point clouds are mapped to.
         :param nsweeps: Number of sweeps to aggregated.
         :param min_distance: Distance below which points are discarded.
+        :param merge: Merge point clouds to one point cloud
         :return: (all_pc, all_times). The aggregated point cloud and timestamps.
         """
 
@@ -94,6 +98,7 @@ class PointCloud():
         # Aggregate current and previous sweeps.
         sample_data_token = sample_rec['data'][chan]
         current_sd_rec = nusc.get('sample_data', sample_data_token)
+        sweep_pcs = []
         for _ in range(nsweeps):
             # Load up the pointcloud.
             current_pc = cls.from_file(osp.join(nusc.dataroot, current_sd_rec['filename']))
@@ -118,14 +123,23 @@ class PointCloud():
             times = time_lag * np.ones((1, current_pc.nbr_points()))
             all_times = np.hstack((all_times, times))
 
-            # Merge with key pc.
-            all_pc.points = np.hstack((all_pc.points, current_pc.points))
+            sweep_pcs.insert(0,current_pc)
 
             # Abort if there are no previous sweeps.
             if current_sd_rec['prev'] == '':
                 break
             else:
                 current_sd_rec = nusc.get('sample_data', current_sd_rec['prev'])
+
+        if merge:
+            # Merge with key pc.
+            for sweep_pc in sweep_pcs:
+                all_pc.points = np.hstack((all_pc.points, sweep_pc.points))
+            
+            all_pc = [all_pc]
+        else:
+            # we are good to go
+            all_pc = sweep_pcs
 
         return all_pc, all_times
 
@@ -631,22 +645,14 @@ class Box:
                  (int(center_bottom[0]), int(center_bottom[1])),
                  (int(center_bottom_forward[0]), int(center_bottom_forward[1])),
                  colors[0][::-1], linewidth)
-
         
     def box2d(self, camera_intrinsic: np.ndarray, imsize: tuple=None, normalize: bool=False):
         """
         Get the according 2-D bounding box projected on the given camera
 
         :param camera_instrinsic: [np.array] 3x3 intrinsic camera matrice
-        :param imsize: (int, int) Width, Height of the image in pixels
-        :param normalize: [bool] True for normalizing the x and y positions of the 2d box according to the image
-            If you request normalizing, you need to insert imsize as well.
-            Origin (x=0, y=0) will be top left of the image
-
         :returns: <np.array 4> box2d as vector with min and max dimensions [xmin, ymin, xmax, ymax]
         """
-
-        assert normalize is False or isinstance(imsize, tuple), "If you want to normalize 2-D bounding box, you need to insert imsize"
 
         corners_3d = self.corners()
         corners_img = view_points(points=corners_3d, view=camera_intrinsic, normalize=True)[:2, :]
@@ -655,12 +661,13 @@ class Box:
         ymin = min(corners_img[1])
         ymax = max(corners_img[1])
 
-        if normalize:
-            xmin /= imsize[0]
-            xmax /= imsize[0]
-            ymin /= imsize[1]
-            ymax /= imsize[1]
-            
         box2d = np.array([xmin, ymin, xmax, ymax])
 
         return box2d
+
+    def copy(self):
+        """
+        Create a copy of self.
+        :return: A copy.
+        """
+        return copy.deepcopy(self)

@@ -45,7 +45,7 @@ class NuScenes:
         :param verbose: Whether to print status messages during load.
         :param map_resolution: Resolution of maps (meters).
         """
-        if version not in ['v1.0-trainval', 'v1.0-test', 'v1.0-mini']:
+        if version not in ['v1.0-mini', 'v1.0-trainval', 'v1.0-test', 'v1.0-private-test']:
             raise ValueError('Invalid DB version: {}'.format(version))
 
         self.version = version
@@ -57,7 +57,7 @@ class NuScenes:
 
         start_time = time.time()
         if verbose:
-            print("======\nLoading NuScenes tables for version {} ...".format(self.version))
+            print("======\nLoading NuScenes tables for version {}...".format(self.version))
 
         # Explicitly assign tables to help the IDE determine valid class members.
         self.category = self.__load_table__('category')
@@ -73,6 +73,10 @@ class NuScenes:
         self.sample_data = self.__load_table__('sample_data')
         self.sample_annotation = self.__load_table__('sample_annotation')
         self.map = self.__load_table__('map')
+
+        # If available, also load the image_annotations table created by export_2d_annotations_as_json().
+        if osp.exists(osp.join(self.table_root, 'image_annotations.json')):
+            self.image_annotations = self.__load_table__('image_annotations')
 
         # Initialize map mask for each map record.
         for map_record in self.map:
@@ -379,36 +383,37 @@ class NuScenes:
         self.explorer.list_sample(sample_token)
 
     def render_pointcloud_in_image(self, sample_token: str, dot_size: int = 5,  pointsensor_channel: str = 'LIDAR_TOP',
-                                   camera_channel: str = 'CAM_FRONT'):
+                                   camera_channel: str = 'CAM_FRONT', out_path: str = None):
         self.explorer.render_pointcloud_in_image(sample_token, dot_size, pointsensor_channel=pointsensor_channel,
-                                                 camera_channel=camera_channel)
+                                                 camera_channel=camera_channel, out_path=out_path)
 
-    def render_sample(self, sample_token: str, box_vis_level: BoxVisibility = BoxVisibility.ANY, nsweeps: int = 1)\
-            -> None:
-        self.explorer.render_sample(sample_token, box_vis_level, nsweeps=nsweeps)
+    def render_sample(self, sample_token: str, box_vis_level: BoxVisibility = BoxVisibility.ANY, nsweeps: int = 1,
+                      out_path: str = None) -> None:
+        self.explorer.render_sample(sample_token, box_vis_level, nsweeps=nsweeps, out_path=out_path)
 
     def render_sample_data(self, sample_data_token: str, with_anns: bool = True,
                            box_vis_level: BoxVisibility = BoxVisibility.ANY, axes_limit: float = 40, ax: Axes = None,
-                           nsweeps: int = 1) -> None:
-        self.explorer.render_sample_data(sample_data_token, with_anns, box_vis_level, axes_limit, ax, nsweeps=nsweeps)
+                           nsweeps: int = 1, out_path: str = None):
+        self.explorer.render_sample_data(sample_data_token, with_anns, box_vis_level, axes_limit, ax, nsweeps=nsweeps,
+                                         out_path=out_path)
 
     def render_annotation(self, sample_annotation_token: str, margin: float = 10, view: np.ndarray = np.eye(4),
-                          box_vis_level: BoxVisibility = BoxVisibility.ANY):
-        self.explorer.render_annotation(sample_annotation_token, margin, view, box_vis_level)
+                          box_vis_level: BoxVisibility = BoxVisibility.ANY, out_path: str = None):
+        self.explorer.render_annotation(sample_annotation_token, margin, view, box_vis_level, out_path)
 
-    def render_instance(self, instance_token: str):
-        self.explorer.render_instance(instance_token)
+    def render_instance(self, instance_token: str, out_path: str = None):
+        self.explorer.render_instance(instance_token, out_path=out_path)
 
     def render_scene(self, scene_token: str, freq: float = 10, imsize: Tuple[float, float] = (640, 360),
                      out_path: str = None) -> None:
         self.explorer.render_scene(scene_token, freq, imsize, out_path)
 
-    def render_scene_channel(self, scene_token: str, channel: str = 'CAM_FRONT',
-                             imsize: Tuple[float, float] = (640, 360)) -> None:
-        self.explorer.render_scene_channel(scene_token, channel=channel, imsize=imsize)
+    def render_scene_channel(self, scene_token: str, channel: str = 'CAM_FRONT', freq: float=10,
+                             imsize: Tuple[float, float] = (640, 360), out_path: str = None):
+        self.explorer.render_scene_channel(scene_token, channel=channel, freq=freq, imsize=imsize, out_path=out_path)
 
-    def render_egoposes_on_map(self, log_location: str, scene_tokens: List = None):
-        self.explorer.render_egoposes_on_map(log_location, scene_tokens)
+    def render_egoposes_on_map(self, log_location: str, scene_tokens: List = None, out_path: str = None):
+        self.explorer.render_egoposes_on_map(log_location, scene_tokens, out_path=out_path)
 
 
 class NuScenesExplorer:
@@ -420,12 +425,15 @@ class NuScenesExplorer:
 
     @staticmethod
     def get_color(category_name: str):
-        """ Provides the default colors based on the category names. """
-        if category_name in ['vehicle.bicycle', 'vehicle.motorcycle']:
+        """
+        Provides the default colors based on the category names.
+        This method works for the general nuScenes categories, as well as the nuScenes detection categories.
+        """
+        if 'bicycle' in category_name or 'motorcycle' in category_name:
             return 255, 61, 99  # Red
-        elif 'vehicle' in category_name:
+        elif 'vehicle' in category_name or category_name in ['bus', 'car', 'construction_vehicle', 'trailer', 'truck']:
             return 255, 158, 0  # Orange
-        elif 'human.pedestrian' in category_name:
+        elif 'pedestrian' in category_name:
             return 0, 0, 230  # Blue
         elif 'cone' in category_name or 'barrier' in category_name:
             return 0, 0, 0  # Black
@@ -487,6 +495,8 @@ class NuScenesExplorer:
             desc = record['name'] + ', ' + record['description']
             if len(desc) > 55:
                 desc = desc[:51] + "..."
+            if len(location) > 18:
+                location = location[:18]
 
             print('{:16} [{}] {:4.0f}s, {}, #anns:{}'.format(
                 desc, datetime.utcfromtimestamp(start_time).strftime('%y-%m-%d %H:%M:%S'),
@@ -506,12 +516,16 @@ class NuScenesExplorer:
             ann_record = self.nusc.get('sample_annotation', ann_token)
             print('sample_annotation_token: {}, category: {}'.format(ann_record['token'], ann_record['category_name']))
 
-    def map_pointcloud_to_image(self, pointsensor_token: str, camera_token: str):
+    def map_pointcloud_to_image(self,
+                                pointsensor_token: str,
+                                camera_token: str,
+                                min_dist: float = 1.0) -> Tuple:
         """
         Given a point sensor (lidar/radar) token and camera sample_data token, load point-cloud and map it to the image
         plane.
         :param pointsensor_token: Lidar/radar sample_data token.
         :param camera_token: Camera sample_data token.
+        :param min_dist: Distance from the camera below which points are discarded.
         :return (pointcloud <np.float: 2, n)>, coloring <np.float: n>, image <Image>).
         """
 
@@ -549,15 +563,17 @@ class NuScenesExplorer:
         # Grab the depths (camera frame z axis points away from the camera).
         depths = pc.points[2, :]
 
-        # Set the height to be the coloring.
-        coloring = pc.points[2, :]
+        # Retrieve the color from the depth.
+        coloring = depths
 
         # Take the actual picture (matrix multiplication with camera-matrix + renormalization).
         points = view_points(pc.points[:3, :], np.array(cs_record['camera_intrinsic']), normalize=True)
 
         # Remove points that are either outside or behind the camera. Leave a margin of 1 pixel for aesthetic reasons.
+        # Also make sure points are at least 1m in front of the camera to avoid seeing the lidar points on the camera
+        # casing for non-keyframes which are slightly out of sync.
         mask = np.ones(depths.shape[0], dtype=bool)
-        mask = np.logical_and(mask, depths > 0)
+        mask = np.logical_and(mask, depths > min_dist)
         mask = np.logical_and(mask, points[0, :] > 1)
         mask = np.logical_and(mask, points[0, :] < im.size[0] - 1)
         mask = np.logical_and(mask, points[1, :] > 1)
@@ -571,13 +587,15 @@ class NuScenesExplorer:
                                    sample_token: str,
                                    dot_size: int = 5,
                                    pointsensor_channel: str = 'LIDAR_TOP',
-                                   camera_channel: str = 'CAM_FRONT'):
+                                   camera_channel: str = 'CAM_FRONT',
+                                   out_path: str = None):
         """
         Scatter-plots a point-cloud on top of image.
         :param sample_token: Sample token.
         :param dot_size: Scatter plot dot size.
         :param pointsensor_channel: RADAR or LIDAR channel name, e.g. 'LIDAR_TOP'.
         :param camera_channel: Camera channel name, e.g. 'CAM_FRONT'.
+        :param out_path: Optional path to save the rendered figure to disk.
         """
         sample_record = self.nusc.get('sample', sample_token)
 
@@ -591,15 +609,20 @@ class NuScenesExplorer:
         plt.scatter(points[0, :], points[1, :], c=coloring, s=dot_size)
         plt.axis('off')
 
+        if out_path is not None:
+            plt.savefig(out_path)
+
     def render_sample(self,
                       token: str,
                       box_vis_level: BoxVisibility = BoxVisibility.ANY,
-                      nsweeps: int = 1) -> None:
+                      nsweeps: int = 1,
+                      out_path: str = None) -> None:
         """
         Render all LIDAR and camera sample_data in sample along with annotations.
         :param token: Sample token.
         :param box_vis_level: If sample_data is an image, this sets required visibility for boxes.
         :param nsweeps: Number of sweeps for lidar and radar.
+        :param out_path: Optional path to save the rendered figure to disk.
         """
         record = self.nusc.get('sample', token)
 
@@ -633,13 +656,17 @@ class NuScenesExplorer:
         plt.tight_layout()
         fig.subplots_adjust(wspace=0, hspace=0)
 
+        if out_path is not None:
+            plt.savefig(out_path)
+
     def render_sample_data(self,
                            sample_data_token: str,
                            with_anns: bool = True,
                            box_vis_level: BoxVisibility = BoxVisibility.ANY,
                            axes_limit: float = 40,
                            ax: Axes = None,
-                           nsweeps: int = 1) -> None:
+                           nsweeps: int = 1,
+                           out_path: str = None) -> None:
         """
         Render sample data onto axis.
         :param sample_data_token: Sample_data token.
@@ -648,6 +675,7 @@ class NuScenesExplorer:
         :param axes_limit: Axes limit for lidar and radar (measured in meters).
         :param ax: Axes onto which to render.
         :param nsweeps: Number of sweeps for lidar and radar.
+        :param out_path: Optional path to save the rendered figure to disk.
         """
 
         # Get sensor modality.
@@ -773,17 +801,22 @@ class NuScenesExplorer:
         ax.set_title(sd_record['channel'])
         ax.set_aspect('equal')
 
+        if out_path is not None:
+            plt.savefig(out_path)
+
     def render_annotation(self,
                           anntoken: str,
                           margin: float = 10,
                           view: np.ndarray = np.eye(4),
-                          box_vis_level: BoxVisibility = BoxVisibility.ANY):
+                          box_vis_level: BoxVisibility = BoxVisibility.ANY,
+                          out_path: str = None):
         """
         Render selected annotation.
         :param anntoken: Sample_annotation token.
         :param margin: How many meters in each direction to include in LIDAR view.
         :param view: LIDAR view point.
         :param box_vis_level: If sample_data is an image, this sets required visibility for boxes.
+        :param out_path: Optional path to save the rendered figure to disk.
         """
 
         ann_record = self.nusc.get('sample_annotation', anntoken)
@@ -829,10 +862,14 @@ class NuScenesExplorer:
             c = np.array(self.get_color(box.name)) / 255.0
             box.render(axes[1], view=camera_intrinsic, normalize=True, colors=(c, c, c))
 
-    def render_instance(self, instance_token: str):
+        if out_path is not None:
+            plt.savefig(out_path)
+
+    def render_instance(self, instance_token: str, out_path: str = None):
         """
         Finds the annotation of the given instance that is closest to the vehicle, and then renders it.
         :param instance_token: The instance token.
+        :param out_path: Optional path to save the rendered figure to disk.
         """
         ann_tokens = self.nusc.field2token('sample_annotation', 'instance_token', instance_token)
         closest = [np.inf, None]
@@ -845,7 +882,7 @@ class NuScenesExplorer:
             if dist < closest[0]:
                 closest[0] = dist
                 closest[1] = ann_token
-        self.render_annotation(closest[1])
+        self.render_annotation(closest[1], out_path=out_path)
 
     def render_scene(self,
                      scene_token: str,
@@ -861,6 +898,9 @@ class NuScenesExplorer:
         """
 
         assert imsize[0] / imsize[1] == 16 / 9, "Aspect ratio should be 16/9."
+
+        if out_path is not None:
+            assert osp.splitext(out_path)[-1] == '.avi'
 
         # Get records from DB.
         scene_rec = self.nusc.get('scene', scene_token)
@@ -959,12 +999,16 @@ class NuScenesExplorer:
     def render_scene_channel(self,
                              scene_token: str,
                              channel: str = 'CAM_FRONT',
-                             imsize: Tuple[float, float] = (640, 360)) -> None:
+                             freq: float = 10,
+                             imsize: Tuple[float, float] = (640, 360),
+                             out_path: str = None) -> None:
         """
         Renders a full scene for a particular camera channel.
         :param scene_token: Unique identifier of scene to render.
         :param channel: Channel to render.
+        :param freq: Display frequency (Hz).
         :param imsize: Size of image to render. The larger the slower this will run.
+        :param out_path: Optional path to write a video file of the rendered frames.
         """
 
         valid_channels = ['CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT',
@@ -972,6 +1016,9 @@ class NuScenesExplorer:
 
         assert imsize[0] / imsize[1] == 16 / 9, "Aspect ratio should be 16/9."
         assert channel in valid_channels, 'Input channel {} not valid.'.format(channel)
+
+        if out_path is not None:
+            assert osp.splitext(out_path)[-1] == '.avi'
 
         # Get records from DB
         scene_rec = self.nusc.get('scene', scene_token)
@@ -982,6 +1029,12 @@ class NuScenesExplorer:
         name = '{}: {} (Space to pause, ESC to exit)'.format(scene_rec['name'], channel)
         cv2.namedWindow(name)
         cv2.moveWindow(name, 0, 0)
+
+        if out_path is not None:
+            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+            out = cv2.VideoWriter(out_path, fourcc, freq, imsize)
+        else:
+            out = None
 
         has_more_frames = True
         while has_more_frames:
@@ -1001,6 +1054,8 @@ class NuScenesExplorer:
             # Render
             im = cv2.resize(im, imsize)
             cv2.imshow(name, im)
+            if out_path is not None:
+                out.write(im)
 
             key = cv2.waitKey(10)  # Images stored at approx 10 Hz, so wait 10 ms.
             if key == 32:  # If space is pressed, pause.
@@ -1016,12 +1071,15 @@ class NuScenesExplorer:
                 has_more_frames = False
 
         cv2.destroyAllWindows()
+        if out_path is not None:
+            out.release()
 
     def render_egoposes_on_map(self, log_location: str,
                                scene_tokens: List = None,
                                close_dist: float = 100,
                                color_fg: Tuple[int, int, int] = (167, 174, 186),
-                               color_bg: Tuple[int, int, int] = (255, 255, 255)):
+                               color_bg: Tuple[int, int, int] = (255, 255, 255),
+                               out_path: str = None):
         """
         Renders ego poses a the map. These can be filtered by location or scene.
         :param log_location: Name of the location, e.g. "singapore-onenorth", "singapore-hollandvillage",
@@ -1030,6 +1088,7 @@ class NuScenesExplorer:
         :param close_dist: Distance in meters for an ego pose to be considered within range of another ego pose.
         :param color_fg: Color of the semantic prior in RGB format.
         :param color_bg: Color of the non-semantic prior in RGB format.
+        :param out_path: Optional path to save the rendered figure to disk.
         """
         # Get logs by location
         log_tokens = [l['token'] for l in self.nusc.log if l['location'] == log_location]
@@ -1098,3 +1157,6 @@ class NuScenesExplorer:
         color_bar_ticklabels = plt.getp(color_bar.ax.axes, 'yticklabels')
         plt.setp(color_bar_ticklabels, color='k')
         plt.rcParams['figure.facecolor'] = 'white'  # Reset for future plots
+
+        if out_path is not None:
+            plt.savefig(out_path)
