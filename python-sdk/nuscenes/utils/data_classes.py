@@ -7,6 +7,7 @@ import struct
 from abc import ABC, abstractmethod
 from functools import reduce
 from typing import Tuple, List, Dict
+import copy
 
 import cv2
 import numpy as np
@@ -20,7 +21,8 @@ class PointCloud():
     """
     Abstract class for manipulating and viewing point clouds.
     Every point cloud (lidar and radar) consists of points where:
-    - Dimensions 0, 1, 2 represent x, y, z coordinates. These are modified when the point cloud is rotated or translated.
+    - Dimensions 0, 1, 2 represent x, y, z coordinates.
+        These are modified when the point cloud is rotated or translated.
     - All other dimensions are optional. Hence these have to be manually modified if the reference frame changes.
     """
 
@@ -631,7 +633,6 @@ class Box:
                  (int(center_bottom[0]), int(center_bottom[1])),
                  (int(center_bottom_forward[0]), int(center_bottom_forward[1])),
                  colors[0][::-1], linewidth)
-
         
     def box2d(self, camera_intrinsic: np.ndarray, imsize: tuple=None, normalize: bool=False):
         """
@@ -664,3 +665,10 @@ class Box:
         box2d = np.array([xmin, ymin, xmax, ymax])
 
         return box2d
+
+    def copy(self):
+        """
+        Create a copy of self.
+        :return: A copy.
+        """
+        return copy.deepcopy(self)
