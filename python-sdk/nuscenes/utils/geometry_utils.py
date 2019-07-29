@@ -164,15 +164,15 @@ def points_in_box2(box: 'Box', points: np.ndarray, wlh_tolerance: float = 0.0, a
     # Rotate
     rel_points = np.dot(box.orientation.inverse.rotation_matrix, rel_points)
 
-
     # incorporate tolerances
-    angle_tolerances = math.tan(angle_tolerance) * points[0, :]
-    max_wlh = box.wlh/2 + wlh_tolerance
+    distance = np.dot(box.center, box.center)**0.5
+    a_tol = math.tan(angle_tolerance) * distance
+    max_wlh = box.wlh/2 + wlh_tolerance + a_tol
     min_wlh = -max_wlh
     
-    mask_x = np.logical_and(min_wlh[1] <= rel_points[0,:] + angle_tolerances, rel_points[0,:] - angle_tolerances <= max_wlh[1])
-    mask_y = np.logical_and(min_wlh[0] <= rel_points[1,:] + angle_tolerances, rel_points[1,:] - angle_tolerances <= max_wlh[0])
-    mask_z = np.logical_and(min_wlh[2] <= rel_points[2,:] + angle_tolerances, rel_points[2,:] - angle_tolerances <= max_wlh[2])
+    mask_x = np.logical_and(min_wlh[0] <= rel_points[1,:], rel_points[1,:] <= max_wlh[0])
+    mask_y = np.logical_and(min_wlh[1] <= rel_points[0,:], rel_points[0,:] <= max_wlh[1])
+    mask_z = np.logical_and(min_wlh[2] <= rel_points[2,:], rel_points[2,:] <= max_wlh[2])
     mask = np.logical_and(np.logical_and(mask_x, mask_y), mask_z)
 
     return mask
