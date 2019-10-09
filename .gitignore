@@ -21,3 +21,9 @@ doc
 .pydevproject
 _ext
 *egg-info
+
+
+
+##### Due to incompatibility with the original setup procedure #####
+setup/setup.py
+setup/requirements.txt
